@@ -41,7 +41,7 @@ export const env = {
     apiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.RESEND_FROM_EMAIL,
   },
-  clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  clientUrl: "https://webinar.khushnay.com/",
   adminClerkUserIds: (process.env.ADMIN_CLERK_USER_IDS || "")
     .split(",")
     .map((id) => id.trim())
