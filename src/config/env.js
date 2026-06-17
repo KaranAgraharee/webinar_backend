@@ -41,7 +41,13 @@ export const env = {
     apiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.RESEND_FROM_EMAIL,
   },
-  clientUrl: "https://webinar.khushnay.com/",
+  // Primary client URL (kept for backward-compatibility).
+  clientUrl: process.env.CLIENT_URL || "https://webinar.khushnay.com",
+  // Allow a comma-separated list of allowed client origins (useful for localhost and deployed URL).
+  clientAllowedOrigins: (process.env.CLIENT_URLS || process.env.CLIENT_URL || "https://webinar.khushnay.com")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean),
   adminClerkUserIds: (process.env.ADMIN_CLERK_USER_IDS || "")
     .split(",")
     .map((id) => id.trim())

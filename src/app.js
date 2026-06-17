@@ -10,9 +10,16 @@ import { env } from "./config/env.js";
 
 const app = express();
 
+// Configure CORS to allow only configured origins
+const allowedOrigins = env.clientAllowedOrigins || [env.clientUrl];
 app.use(
   cors({
-    origin: env.clientUrl,
+    origin: function (origin, callback) {
+      // allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS policy: This origin is not allowed."), false);
+    },
     credentials: true,
   })
 );
