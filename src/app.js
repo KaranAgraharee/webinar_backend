@@ -13,7 +13,19 @@ const app = express();
 // Configure CORS to allow only configured origins
 const allowedOrigins = env.clientAllowedOrigins || [env.clientUrl];
 app.use(
-  app.use(cors())
+  cors({
+    origin: (origin, callback) => {
+      // Allow server-to-server requests (no origin) and listed origins
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin '${origin}' is not allowed`));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
