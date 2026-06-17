@@ -12,9 +12,7 @@ const app = express();
 
 // Configure CORS to allow only configured origins
 const allowedOrigins = env.clientAllowedOrigins || [env.clientUrl];
-app.use(
-  app.use(cors())
-);
+app.use(cors())
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
