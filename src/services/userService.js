@@ -1,3 +1,4 @@
+import { clerkClient } from "@clerk/express";
 import User from "../models/User.js";
 
 const getEmailFromAuth = (req, overrides = {}) => {
@@ -51,4 +52,49 @@ export const syncUserFromClerk = async (req, overrides = {}) => {
   });
 
   return user;
+};
+
+export const fetchAndSyncClerkUser = async (clerkUserId) => {
+  try {
+    const clerkUser = await clerkClient.users.getUser(clerkUserId);
+    const email =
+      clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ||
+      clerkUser.emailAddresses[0]?.emailAddress ||
+      "";
+    const phone =
+      clerkUser.phoneNumbers.find((p) => p.id === clerkUser.primaryPhoneNumberId)?.phoneNumber ||
+      clerkUser.phoneNumbers[0]?.phoneNumber ||
+      "";
+    const name =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
+      email.split("@")[0] ||
+      "";
+
+    let user = await User.findOne({ clerkUserId });
+    if (user) {
+      user.email = email;
+      user.name = name;
+      user.phone = phone;
+      await user.save();
+    } else {
+      user = await User.create({
+        clerkUserId,
+        email,
+        name,
+        phone,
+      });
+    }
+
+    return { name, email, phone, user };
+  } catch (error) {
+    console.error(`Error fetching/syncing clerk user ${clerkUserId}:`, error);
+    // Fallback: fetch local user if exists
+    const user = await User.findOne({ clerkUserId });
+    return {
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      user,
+    };
+  }
 };

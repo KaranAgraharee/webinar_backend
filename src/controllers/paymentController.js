@@ -12,6 +12,7 @@ import {
   sendPaymentSuccessSafe,
   sendRegistrationConfirmationSafe,
 } from "../services/notificationService.js";
+import { fetchAndSyncClerkUser } from "../services/userService.js";
 
 const isFullyRegistered = (registration, webinar) => {
   if (!registration || registration.status !== "paid") {
@@ -170,16 +171,27 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Webinar not available", 404);
   }
 
+  const clerkDetails = await fetchAndSyncClerkUser(req.userId);
+  req.user = clerkDetails.user || req.user;
+
   let registration = await Registration.findOne({
     webinar: payment.webinar,
     user: req.user._id,
   });
 
+  const finalEmail = clerkDetails.email || req.user.email;
+  const finalName = clerkDetails.name || req.user.name;
+  const finalPhone = clerkDetails.phone || req.user.phone || "";
+
   if (!registration) {
     registration = await Registration.create({
       webinar: payment.webinar,
+      webinarId: payment.webinar,
       user: req.user._id,
       clerkUserId: req.userId,
+      name: finalName,
+      email: finalEmail,
+      phone: finalPhone,
       amount: payment.amount,
       status: "paid",
       paymentStatus: "paid",
@@ -188,6 +200,10 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     registration.status = "paid";
     registration.paymentStatus = "paid";
     registration.amount = payment.amount;
+    registration.name = finalName;
+    registration.email = finalEmail;
+    registration.phone = finalPhone;
+    registration.webinarId = payment.webinar;
     await registration.save();
   }
 
