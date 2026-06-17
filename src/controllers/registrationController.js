@@ -4,7 +4,7 @@ import Webinar from "../models/Webinar.js";
 import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { sendRegistrationConfirmationSafe } from "../services/notificationService.js";
-import { syncUserFromClerk } from "../services/userService.js";
+import { syncUserFromClerk, fetchAndSyncClerkUser } from "../services/userService.js";
 
 const isFullyRegistered = (registration, webinar) => {
   if (!registration || registration.status !== "paid") {
@@ -93,10 +93,21 @@ export const registerForWebinar = asyncHandler(async (req, res) => {
     );
   }
 
+  const clerkDetails = await fetchAndSyncClerkUser(req.userId);
+  req.user = clerkDetails.user || req.user;
+
+  const finalEmail = email || clerkDetails.email || req.user.email;
+  const finalName = name || clerkDetails.name || req.user.name;
+  const finalPhone = clerkDetails.phone || req.user.phone || "";
+
   const registration = await Registration.create({
     webinar: webinar._id,
+    webinarId: webinar._id,
     user: req.user._id,
     clerkUserId: req.userId,
+    name: finalName,
+    email: finalEmail,
+    phone: finalPhone,
     amount: webinar.price,
     status: "paid",
     paymentStatus: "not_required",

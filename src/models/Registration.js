@@ -38,6 +38,23 @@ const registrationSchema = new mongoose.Schema(
       enum: REMINDER_KEYS,
       default: [],
     },
+    name: {
+      type: String,
+      trim: true,
+    },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    webinarId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Webinar",
+    },
   },
   { timestamps: true }
 );
