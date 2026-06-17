@@ -12,7 +12,14 @@ const app = express();
 
 // Configure CORS to allow only configured origins
 const allowedOrigins = env.clientAllowedOrigins || [env.clientUrl];
-app.use(cors())
+app.use(cors({
+  origin: [
+    "https://khushnay-webinar.vercel.app",
+    "https://webinar.khushnay.com",
+    "http://localhost:5173"
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
