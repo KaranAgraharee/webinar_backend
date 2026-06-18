@@ -1,57 +1,66 @@
 import mongoose from "mongoose";
+import { REMINDER_KEYS } from "../config/reminderWindows.js";
 
-const paymentSchema = new mongoose.Schema(
+const registrationSchema = new mongoose.Schema(
   {
-    registration: {
+    webinar: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Registration",
-      default: null,
+      ref: "Webinar",
+      required: true,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    webinar: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Webinar",
-      required: true,
-    },
-    razorpayOrderId: {
+    clerkUserId: {
       type: String,
       required: true,
-      unique: true,
+      index: true,
     },
-    razorpayPaymentId: {
+    status: {
       type: String,
-      default: null,
+      enum: ["pending", "paid", "cancelled"],
+      default: "pending",
     },
-    razorpaySignature: {
+    paymentStatus: {
       type: String,
-      default: null,
+      enum: ["not_required", "pending", "paid", "failed"],
+      default: "pending",
     },
     amount: {
       type: Number,
       required: true,
       min: 0,
     },
-    currency: {
-      type: String,
-      default: "INR",
+    remindersSent: {
+      type: [String],
+      enum: REMINDER_KEYS,
+      default: [],
     },
-    status: {
+    name: {
       type: String,
-      enum: ["created", "paid", "failed"],
-      default: "created",
+      trim: true,
     },
-    lastPaymentReminderDate: {
+    email: {
       type: String,
-      default: null,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    webinarId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Webinar",
     },
   },
   { timestamps: true }
 );
 
-const Payment = mongoose.model("Payment", paymentSchema);
+registrationSchema.index({ webinar: 1, user: 1 }, { unique: true });
 
-export default Payment;
+const Registration = mongoose.model("Registration", registrationSchema);
+
+export default Registration;
