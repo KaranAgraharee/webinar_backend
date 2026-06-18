@@ -16,10 +16,10 @@ const app = express();
 const allowedOrigins = env.clientAllowedOrigins || [env.clientUrl];
 app.use(cors({
   origin: [
+    "https://karanagraharee.github.io/",
     "https://webinar.khushnay.com",
     "https://khushnay-webinar.vercel.app",
     "http://localhost:5173",
-    "https://karanagraharee.github.io/"
   ],
   credentials: true
 }));
