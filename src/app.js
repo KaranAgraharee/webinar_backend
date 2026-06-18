@@ -19,7 +19,7 @@ app.use(cors({
     "https://webinar.khushnay.com",
     "https://khushnay-webinar.vercel.app",
     "http://localhost:5173",
-    "https://karanagraharee.github.io/attendees/attendees.html"
+    "https://karanagraharee.github.io/"
   ],
   credentials: true
 }));
