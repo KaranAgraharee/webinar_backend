@@ -6,6 +6,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import attendeeRoutes from "./routes/attendees.js";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import { env } from "./config/env.js";
 
@@ -32,6 +33,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.use("/attendees", attendeeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/webinars", webinarRoutes);
 app.use("/api/payment", paymentRoutes);
