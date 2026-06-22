@@ -12,7 +12,7 @@ config();
 const app = express();
 
 const urls =  [
-'http://localhost:5174'
+'https://webinar-backend-njpw.onrender.com'
     ]
 
 app.use(
