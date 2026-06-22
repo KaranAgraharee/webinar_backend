@@ -12,7 +12,7 @@ config();
 const app = express();
 
 const urls =  [
-'https://webinar.khushnay.com/'
+'http://localhost:5174'
     ]
 
 app.use(
