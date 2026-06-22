@@ -11,7 +11,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: 'https://webinar.khushnay.com',
+    origin: 'http://localhost:5173',
     credentials: true,
   })
 );
