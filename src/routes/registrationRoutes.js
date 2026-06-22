@@ -1,13 +1,9 @@
 import express from "express";
-import {
-  getRegistrationStatus,
-  registerForWebinar,
-} from "../controllers/registrationController.js";
-import { protectRoute } from "../middleware/authMiddleware.js";
+import { registerForWebinar } from "../controllers/registrationController.js";
 
 const router = express.Router();
 
-router.get("/register/status", protectRoute, getRegistrationStatus);
-router.post("/register", protectRoute, registerForWebinar);
+// Public — no authentication required
+router.post("/register", registerForWebinar);
 
 export default router;

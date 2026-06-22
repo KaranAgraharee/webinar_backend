@@ -3,12 +3,9 @@ import { AppError } from "../utils/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const getWebinars = asyncHandler(async (req, res) => {
-  // Public API: only show published webinars.
-  const filter = { isPublished: true };
-
-  const webinars = await Webinar.find(filter)
-    .populate("createdBy", "name email")
-    .sort({ date: 1 });
+  const webinars = await Webinar.find({ isPublished: true })
+    .sort({ date: 1 })
+    .lean();
 
   res.status(200).json({
     success: true,
@@ -18,10 +15,7 @@ export const getWebinars = asyncHandler(async (req, res) => {
 });
 
 export const getWebinarById = asyncHandler(async (req, res) => {
-  const webinar = await Webinar.findById(req.params.id).populate(
-    "createdBy",
-    "name email"
-  );
+  const webinar = await Webinar.findById(req.params.id).lean();
 
   if (!webinar) {
     throw new AppError("Webinar not found", 404);
@@ -38,16 +32,7 @@ export const getWebinarById = asyncHandler(async (req, res) => {
 });
 
 export const createWebinar = asyncHandler(async (req, res) => {
-  const {
-    title,
-    description,
-    date,
-    time,
-    venue,
-    meetingLink,
-    price,
-    isPublished,
-  } = req.body;
+  const { title, description, date, time, venue, meetingLink, price, isPublished } = req.body;
 
   if (!title || !description || !date || !time || !venue) {
     throw new AppError("Please provide all required webinar fields", 400);
@@ -62,7 +47,7 @@ export const createWebinar = asyncHandler(async (req, res) => {
     meetingLink: meetingLink || "",
     price: price ?? 0,
     isPublished: Boolean(isPublished),
-    createdBy: req.user._id,
+    createdByEmail: req.adminEmail || "",
   });
 
   res.status(201).json({

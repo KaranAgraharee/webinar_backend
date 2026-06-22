@@ -3,11 +3,11 @@ import {
   createPaymentOrder,
   verifyPayment,
 } from "../controllers/paymentController.js";
-import { protectRoute } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/create-order", protectRoute, createPaymentOrder);
-router.post("/verify", protectRoute, verifyPayment);
+// Both endpoints are now public — identity comes from request body (name/email/phone)
+router.post("/create-order", createPaymentOrder);
+router.post("/verify", verifyPayment);
 
 export default router;
