@@ -12,9 +12,7 @@ config();
 const app = express();
 
 const urls =  [
-      process.env.CLIENT_URL,
-      process.env.ADMIN_URL,
-      process.env.DEV_URL,
+'https://webinar.khushnay.com/'
     ]
 
 app.use(
