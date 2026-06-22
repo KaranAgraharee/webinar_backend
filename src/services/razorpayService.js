@@ -8,9 +8,7 @@ const razorpay = new Razorpay({
   key_secret: env.razorpay.keySecret,
 });
 export const createRazorpayOrder = async ({ amount, receipt, notes = {} }) => {
-  console.log("hit it")
   if (!env.razorpay.keyId || !env.razorpay.keySecret) {
-    console.log(razorpay)
     throw new AppError("Payment gateway is not configured on the server", 503);
   }
 
@@ -18,34 +16,51 @@ export const createRazorpayOrder = async ({ amount, receipt, notes = {} }) => {
     throw new AppError("Amount must be greater than zero", 400);
   }
 
+  let order;
   try {
-    const order = await razorpay.orders.create({
+    order = await razorpay.orders.create({
       amount: Math.round(amount * 100),
       currency: "INR",
       receipt,
       notes,
     });
-    console.log("RAZORPAY ORDER:", "hit the", order);
-
-    return order;
   } catch (error) {
-    const detail =
-      error?.error?.description ||
-      error?.message ||
-      "Unknown Razorpay error";
+    // Razorpay SDK v4 bug: normalizeError crashes with "Cannot read properties of
+    // undefined (reading 'status')" when the underlying HTTP response is missing.
+    // This usually means a network error reaching api.razorpay.com, or an invalid
+    // key causing a non-JSON response that the SDK cannot parse.
+    const isSDKCrash =
+      error instanceof TypeError &&
+      error.message?.includes("Cannot read properties of undefined");
+    const detail = isSDKCrash
+      ? "Razorpay SDK internal error — check network or API key"
+      : error?.error?.description ||
+        error?.message ||
+        "Unknown Razorpay error";
 
-    // Log full error object for debugging — contains Razorpay error code/step/reason
     try {
-      console.error("[razorpay] create order failed: detail=", detail)
-      console.error("[razorpay] full error:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
-    } catch (logErr) {
-      // Fallback if stringify fails
-      console.error("[razorpay] create order failed (unable to stringify error):", error)
+      console.error("[razorpay] create order failed:", detail);
+      if (!isSDKCrash) {
+        console.error(
+          "[razorpay] full error:",
+          JSON.stringify(error, Object.getOwnPropertyNames(error))
+        );
+      }
+    } catch (_) {
+      console.error("[razorpay] create order failed (unstringifiable):", error);
     }
 
     throw new AppError("Failed to create Razorpay order", 502);
   }
+
+  if (!order || !order.id) {
+    console.error("[razorpay] order created but response malformed:", order);
+    throw new AppError("Failed to create Razorpay order", 502);
+  }
+
+  return order;
 };
+
 
 export const verifyRazorpaySignature = ({
   orderId,

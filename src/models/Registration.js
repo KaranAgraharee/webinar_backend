@@ -8,15 +8,31 @@ const registrationSchema = new mongoose.Schema(
       ref: "Webinar",
       required: true,
     },
-    user: {
+    // Convenience alias — same value as webinar, kept for legacy compatibility
+    webinarId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      ref: "Webinar",
     },
-    clerkUserId: {
+    name: {
       type: String,
       required: true,
-      index: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
     },
     status: {
       type: String,
@@ -28,38 +44,20 @@ const registrationSchema = new mongoose.Schema(
       enum: ["not_required", "pending", "paid", "failed"],
       default: "pending",
     },
-    amount: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
     remindersSent: {
       type: [String],
       enum: REMINDER_KEYS,
       default: [],
     },
-    name: {
-      type: String,
-      trim: true,
-    },
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
-    },
-    phone: {
-      type: String,
-      trim: true,
-    },
-    webinarId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Webinar",
-    },
   },
   { timestamps: true }
 );
 
-registrationSchema.index({ webinar: 1, user: 1 }, { unique: true });
+// Prevent duplicate registration for the same webinar + email
+registrationSchema.index({ webinar: 1, email: 1 }, { unique: true });
+// Useful for admin search and cron queries
+registrationSchema.index({ paymentStatus: 1 });
+registrationSchema.index({ createdAt: -1 });
 
 const Registration = mongoose.model("Registration", registrationSchema);
 

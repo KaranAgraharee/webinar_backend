@@ -1,62 +1,56 @@
-import { getAuth } from "@clerk/express";
-import { syncUserFromClerk } from "../services/userService.js";
+import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 
 /**
- * API auth: validates Bearer JWT via clerkMiddleware + getAuth.
- * Returns 401 JSON (no redirect) — required for SPA clients.
+ * JWT-based admin middleware.
+ * Expects: Authorization: Bearer <token>
+ * Sets req.admin = true on success.
  */
-export const protectRoute = async (req, res, next) => {
+export const protectAdmin = (req, res, next) => {
   try {
-    const auth = getAuth(req);
+    const authHeader = req.headers.authorization;
+    // Allow token as query param for file downloads (CSV export)
+    const queryToken = req.query.token;
 
-    if (!auth?.userId) {
+    if (!authHeader && !queryToken) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized — sign in and try again",
+        message: "Unauthorized — admin token required",
       });
     }
 
-    req.auth = auth;
-    req.userId = auth.userId;
-    req.user = await syncUserFromClerk(req);
+    const token = queryToken || (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
 
-    next();
-  } catch (error) {
-    console.error("Auth Middleware Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Server Error",
-    });
-  }
-};
-
-/**
- * Admin auth: validates that the logged-in Clerk user ID is configured as an admin.
- */
-export const requireAdmin = async (req, res, next) => {
-  try {
-    if (!req.userId) {
+    if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized — sign in and try again",
+        message: "Unauthorized — admin token required",
       });
     }
 
-    const isAdmin = env.adminClerkUserIds.includes(req.userId);
-    if (!isAdmin) {
+    const decoded = jwt.verify(token, env.jwtSecret);
+
+    if (!decoded || decoded.role !== "admin") {
       return res.status(403).json({
         success: false,
-        message: "Forbidden — admin access required",
+        message: "Forbidden — invalid admin token",
       });
     }
 
+    req.admin = true;
+    req.adminEmail = decoded.email;
     next();
   } catch (error) {
-    console.error("Admin Auth Middleware Error:", error);
-    return res.status(500).json({
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Session expired — please log in again",
+      });
+    }
+
+    return res.status(401).json({
       success: false,
-      message: "Server Error",
+      message: "Unauthorized — invalid token",
     });
   }
 };

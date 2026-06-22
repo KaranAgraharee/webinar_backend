@@ -1,6 +1,6 @@
 import cron from "node-cron";
-import Payment from "../models/Payment.js";
 import Registration from "../models/Registration.js";
+import Payment from "../models/Payment.js";
 import { webinarConfig } from "../config/webinar.js";
 import { env } from "../config/env.js";
 import { getWebinarStartDateTime } from "../utils/webinarDateTime.js";
@@ -27,38 +27,31 @@ export const processWebinarReminders = async () => {
   if (!isWebinarUpcoming()) return;
 
   const start = startsAt();
-  const registrations = await Registration.find({ status: "paid" }).populate(
-    "user"
-  );
+
+  // Use inline fields (no user population needed)
+  const registrations = await Registration.find({ status: "paid" }).lean();
 
   for (const registration of registrations) {
-    const user = registration.user;
-    if (!user?.email) continue;
+    if (!registration.email) continue;
 
     for (const window of REMINDER_WINDOWS) {
-      if (registration.remindersSent.includes(window.key)) continue;
+      if (registration.remindersSent?.includes(window.key)) continue;
 
-      if (
-        !isWithinReminderWindow(
-          start,
-          window.hours,
-          window.toleranceMinutes
-        )
-      ) {
+      if (!isWithinReminderWindow(start, window.hours, window.toleranceMinutes)) {
         continue;
       }
 
-
       try {
         await sendWebinarReminder({
-          email: user.email,
-          userName: user.name || user.email,
+          email: registration.email,
+          userName: registration.name || registration.email,
           webinar: webinarConfig,
           reminderKey: window.key,
         });
 
-        registration.remindersSent.push(window.key);
-        await registration.save();
+        await Registration.findByIdAndUpdate(registration._id, {
+          $addToSet: { remindersSent: window.key },
+        });
 
         console.log(
           `Reminder ${window.key} sent for registration ${registration._id}`
@@ -76,25 +69,26 @@ export const processWebinarReminders = async () => {
 export const processPendingPaymentReminders = async () => {
   if (!isWebinarUpcoming()) return;
 
-  const payments = await Payment.find({ status: "created" }).populate("user");
+  // Use inline fields on Payment (no user population needed)
+  const payments = await Payment.find({ status: "created" }).lean();
   const todayStamp = getTodayDateStamp();
 
   for (const payment of payments) {
-    const user = payment.user;
-    if (!user?.email) continue;
+    if (!payment.email) continue;
     if (payment.lastPaymentReminderDate === todayStamp) continue;
 
     try {
       await sendPaymentPendingReminder({
-        email: user.email,
-        userName: user.name || user.email,
+        email: payment.email,
+        userName: payment.name || payment.email,
         webinar: webinarConfig,
         amount: payment.amount ?? webinarConfig.price,
         registerUrl: env.clientUrl,
       });
 
-      payment.lastPaymentReminderDate = todayStamp;
-      await payment.save();
+      await Payment.findByIdAndUpdate(payment._id, {
+        lastPaymentReminderDate: todayStamp,
+      });
 
       console.log(
         `Daily pending-payment reminder sent for payment ${payment._id}`
@@ -109,8 +103,7 @@ export const processPendingPaymentReminders = async () => {
 };
 
 export const startReminderCron = () => {
-  cron.schedule("*/10 * * * * ", async () => {
-    console.log("payment")
+  cron.schedule("*/10 * * * *", async () => {
     try {
       await processWebinarReminders();
     } catch (error) {

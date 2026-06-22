@@ -12,28 +12,27 @@ import {
   sendPaymentSuccessSafe,
   sendRegistrationConfirmationSafe,
 } from "../services/notificationService.js";
-import { fetchAndSyncClerkUser } from "../services/userService.js";
 
-const isFullyRegistered = (registration, webinar) => {
-  if (!registration || registration.status !== "paid") {
-    return false;
-  }
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  if (registration.paymentStatus === "paid") {
-    return true;
-  }
-
-  return registration.paymentStatus === "not_required" && webinar.price <= 0;
+const validateRegistrantFields = ({ name, phone, email }) => {
+  if (!name || !String(name).trim()) throw new AppError("Name is required", 400);
+  if (!phone || !String(phone).trim()) throw new AppError("Phone number is required", 400);
+  if (!email || !String(email).trim()) throw new AppError("Email is required", 400);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) throw new AppError("Invalid email address", 400);
 };
 
+// ─── POST /api/payment/create-order  (public) ────────────────────────────────
+
 export const createPaymentOrder = asyncHandler(async (req, res) => {
-  const { webinarId } = req.body;
-  if (!webinarId) {
-    throw new AppError("webinarId is required", 400);
-  }
+  const { webinarId, name, phone, email } = req.body;
+
+  if (!webinarId) throw new AppError("webinarId is required", 400);
+
+  validateRegistrantFields({ name, phone, email });
 
   const webinar = await Webinar.findById(webinarId);
-
   if (!webinar || !webinar.isPublished) {
     throw new AppError("Webinar not available", 404);
   }
@@ -42,11 +41,16 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     throw new AppError("No payment required for this webinar", 400);
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Already registered and paid → return early
   const existingRegistration = await Registration.findOne({
     webinar: webinar._id,
-    user: req.user._id,
+    email: normalizedEmail,
+    paymentStatus: "paid",
   });
-  if (isFullyRegistered(existingRegistration, webinar)) {
+
+  if (existingRegistration) {
     return res.status(200).json({
       success: true,
       alreadyRegistered: true,
@@ -54,15 +58,17 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     });
   }
 
+  // Reuse a recently created order (within 15 min) for the same email+webinar
   const existingPayment = await Payment.findOne({
     webinar: webinar._id,
-    user: req.user._id,
+    email: normalizedEmail,
     status: "created",
   });
 
-
-  if (existingPayment &&
-  Date.now() - existingPayment.createdAt < 15 * 60 * 1000) {
+  if (
+    existingPayment &&
+    Date.now() - new Date(existingPayment.createdAt).getTime() < 15 * 60 * 1000
+  ) {
     return res.status(200).json({
       success: true,
       data: {
@@ -75,21 +81,20 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  const receipt = `wbn_${String(webinar._id).slice(-10)}_${String(
-    Date.now()
-  ).slice(-8)}`;
-
+  const receipt = `wbn_${String(webinar._id).slice(-10)}_${String(Date.now()).slice(-8)}`;
   const order = await createRazorpayOrder({
     amount: webinar.price,
     receipt,
     notes: {
       webinarId: String(webinar._id),
-      userId: String(req.user._id),
+      email: normalizedEmail,
     },
   });
   await Payment.create({
-    user: req.user._id,
     webinar: webinar._id,
+    email: normalizedEmail,
+    name: String(name).trim(),
+    phone: String(phone).trim(),
     razorpayOrderId: order.id,
     amount: webinar.price,
     currency: order.currency,
@@ -108,12 +113,17 @@ export const createPaymentOrder = asyncHandler(async (req, res) => {
   });
 });
 
+// ─── POST /api/payment/verify  (public) ──────────────────────────────────────
+
 export const verifyPayment = asyncHandler(async (req, res) => {
   const {
     razorpay_order_id,
     razorpay_payment_id,
     razorpay_signature,
     webinarId,
+    name,
+    email,
+    phone,
   } = req.body;
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -130,27 +140,26 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     throw new AppError("Invalid payment signature", 400);
   }
 
-  const payment = await Payment.findOne({
-    razorpayOrderId: razorpay_order_id,
-  });
+  const payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
 
   if (!payment) {
     throw new AppError("Payment record not found", 404);
   }
 
-  if (String(payment.user) !== String(req.user._id)) {
-    throw new AppError("Not authorized for this payment", 403);
-  }
+  // Normalise email from payment record (source of truth for this order)
+  const finalEmail = payment.email;
+  const finalName = payment.name || (name ? String(name).trim() : "");
+  const finalPhone = payment.phone || (phone ? String(phone).trim() : "");
 
   if (webinarId && String(payment.webinar) !== String(webinarId)) {
     throw new AppError("Webinar does not match payment order", 400);
   }
 
+  // Idempotent: already verified
   if (payment.status === "paid") {
     const paidRegistration = await Registration.findOne({
       webinar: payment.webinar,
-      user: req.user._id,
-      clerkUserId: req.userId,
+      email: finalEmail,
     });
     return res.status(200).json({
       success: true,
@@ -165,30 +174,21 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   await payment.save();
 
   const webinar = await Webinar.findById(payment.webinar);
-  const user = req.user;
 
   if (!webinar || !webinar.isPublished) {
     throw new AppError("Webinar not available", 404);
   }
 
-  const clerkDetails = await fetchAndSyncClerkUser(req.userId);
-  req.user = clerkDetails.user || req.user;
-
+  // Upsert registration
   let registration = await Registration.findOne({
     webinar: payment.webinar,
-    user: req.user._id,
+    email: finalEmail,
   });
-
-  const finalEmail = clerkDetails.email || req.user.email;
-  const finalName = clerkDetails.name || req.user.name;
-  const finalPhone = clerkDetails.phone || req.user.phone || "";
 
   if (!registration) {
     registration = await Registration.create({
       webinar: payment.webinar,
       webinarId: payment.webinar,
-      user: req.user._id,
-      clerkUserId: req.userId,
       name: finalName,
       email: finalEmail,
       phone: finalPhone,
@@ -200,19 +200,18 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     registration.status = "paid";
     registration.paymentStatus = "paid";
     registration.amount = payment.amount;
-    registration.name = finalName;
-    registration.email = finalEmail;
-    registration.phone = finalPhone;
-    registration.webinarId = payment.webinar;
+    if (finalName) registration.name = finalName;
+    if (finalPhone) registration.phone = finalPhone;
     await registration.save();
   }
 
   payment.registration = registration._id;
   await payment.save();
 
+  // Send emails (non-blocking)
   await sendPaymentSuccessSafe({
-    email: user.email,
-    userName: user.name || user.email,
+    email: finalEmail,
+    userName: finalName || finalEmail,
     webinar,
     amount: payment.amount,
     paymentId: razorpay_payment_id,
@@ -220,8 +219,8 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   });
 
   await sendRegistrationConfirmationSafe({
-    email: user.email,
-    userName: user.name || user.email,
+    email: finalEmail,
+    userName: finalName || finalEmail,
     webinar,
   });
 

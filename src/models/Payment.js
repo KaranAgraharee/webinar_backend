@@ -1,66 +1,71 @@
 import mongoose from "mongoose";
-import { REMINDER_KEYS } from "../config/reminderWindows.js";
 
-const registrationSchema = new mongoose.Schema(
+const paymentSchema = new mongoose.Schema(
   {
+    registration: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Registration",
+      default: null,
+    },
     webinar: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Webinar",
       required: true,
     },
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    clerkUserId: {
+    // Registrant info — stored inline so Payment is self-contained
+    email: {
       type: String,
       required: true,
-      index: true,
+      trim: true,
+      lowercase: true,
     },
-    status: {
+    name: {
       type: String,
-      enum: ["pending", "paid", "cancelled"],
-      default: "pending",
+      trim: true,
+      default: "",
     },
-    paymentStatus: {
+    phone: {
       type: String,
-      enum: ["not_required", "pending", "paid", "failed"],
-      default: "pending",
+      trim: true,
+      default: "",
+    },
+    razorpayOrderId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: null,
+    },
+    razorpaySignature: {
+      type: String,
+      default: null,
     },
     amount: {
       type: Number,
       required: true,
       min: 0,
     },
-    remindersSent: {
-      type: [String],
-      enum: REMINDER_KEYS,
-      default: [],
-    },
-    name: {
+    currency: {
       type: String,
-      trim: true,
+      default: "INR",
     },
-    email: {
+    status: {
       type: String,
-      trim: true,
-      lowercase: true,
+      enum: ["created", "paid", "failed"],
+      default: "created",
     },
-    phone: {
+    lastPaymentReminderDate: {
       type: String,
-      trim: true,
-    },
-    webinarId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Webinar",
+      default: null,
     },
   },
   { timestamps: true }
 );
 
-registrationSchema.index({ webinar: 1, user: 1 }, { unique: true });
+paymentSchema.index({ email: 1, webinar: 1 });
 
-const Registration = mongoose.model("Registration", registrationSchema);
+const Payment = mongoose.model("Payment", paymentSchema);
 
-export default Registration;
+export default Payment;

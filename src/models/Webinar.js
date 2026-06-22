@@ -41,10 +41,11 @@ const webinarSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+    // Optional: track who created the webinar (admin email string, not a User ref)
+    createdByEmail: {
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   { timestamps: true }
