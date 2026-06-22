@@ -5,23 +5,17 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
-import { config } from "dotenv";
-
-config();
+import { env } from "./config/env.js";
 
 const app = express();
 
-const urls =  [
-'https://webinar-backend-njpw.onrender.com'
-    ]
-
 app.use(
   cors({
-    origin:urls,
+    origin: env.clientAllowedOrigins,
     credentials: true,
   })
 );
-console.log(process.env.CLIENT_URL)
+console.log("[CORS] Allowed origins:", env.clientAllowedOrigins);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
